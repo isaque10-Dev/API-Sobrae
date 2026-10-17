@@ -15,7 +15,7 @@ endpoints.get('/alimentos/:id', async (req, resp) => {
     let id = req.params.id
 
     let alimento = await TCC_alimento.getAlimentos(id)
-    resp.send(alimentos)
+    resp.send(alimento)
 })
 
 endpoints.post('/alimentos', async (req, resp) => {

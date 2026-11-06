@@ -1,9 +1,2 @@
-import { Router } from "express";
-const endpoints = Router();
-
-
-
-
-
-
-export default endpoints;
+import { statusRouter } from './atividadesController.js';
+export default statusRouter('pessoa', '/statuspessoal');

@@ -1,0 +1,14 @@
+import { Router } from 'express';
+import { authenticate, authRateLimit } from '../middleware/auth.js';
+import * as accounts from '../service/contasService.js';
+const endpoints = Router();
+const limit = authRateLimit();
+endpoints.post('/auth/cadastro', limit, async (req, res) => res.status(201).json(await accounts.register(req.body)));
+endpoints.post('/auth/login', limit, async (req, res) => res.json(await accounts.login(req.body)));
+endpoints.post('/auth/logout', authenticate, async (req, res) => { await accounts.logout(req.user); res.sendStatus(204); });
+endpoints.get('/auth/me', authenticate, async (req, res) => res.json(await accounts.profile(req.user)));
+endpoints.get('/perfil', authenticate, async (req, res) => res.json(await accounts.profile(req.user)));
+endpoints.patch('/perfil', authenticate, async (req, res) => res.json(await accounts.updateProfile(req.user, req.body)));
+endpoints.put('/perfil', authenticate, async (req, res) => res.json(await accounts.updateProfile(req.user, req.body)));
+endpoints.patch('/perfil/senha', authenticate, limit, async (req, res) => { await accounts.changePassword(req.user, req.body); res.json({ mensagem: 'Senha alterada. Entre novamente.' }); });
+export default endpoints;

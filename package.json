@@ -1,10 +1,14 @@
 {
   "name": "api",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "API do Sobraê: contas, alimentos, doações e reservas.",
+  "main": "src/api.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/api.js",
+    "dev": "node --watch src/api.js",
+    "test": "node --test test/*.test.js",
+    "test:integration": "node --test test/integration/*.test.js",
+    "db:setup": "node scripts/setup-db.js"
   },
   "repository": {
     "type": "git",
@@ -23,5 +27,8 @@
     "dotenv": "^18.0.8",
     "express": "^5.3.0",
     "mysql2": "^3.24.6"
+  },
+  "engines": {
+    "node": ">=22"
   }
 }

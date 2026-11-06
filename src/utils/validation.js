@@ -1,80 +1,333 @@
-import { ensure } from './errors.js';
-export function body(value) {
-  ensure(value && typeof value === 'object' && !Array.isArray(value), 400, 'Envie um objeto JSON.');
-  return value;
+
+import { ensure } from "./errors.js";
+
+
+// VERIFICAR OS DADOS RECEBIDOS
+
+export function body(valor) {
+    ensure(valor !== null, 400, "Envie um JSON válido");
+    ensure(typeof valor === "object", 400, "Envie um JSON válido");
+    ensure(Array.isArray(valor) === false, 400, "Envie um objeto JSON");
+
+    return valor;
 }
-export function text(value, field, max = 255, required = true) {
-  if (!required && (value === undefined || value === null || value === '')) return null;
-  ensure(typeof value === 'string' && value.trim().length > 0 && value.trim().length <= max, 400, `${field} deve conter entre 1 e ${max} caracteres.`);
-  return value.trim();
+
+
+// VERIFICAR TEXTOS
+
+export function text(valor, campo, max = 255, obrigatorio = true) {
+
+    if (obrigatorio === false) {
+        if (valor === undefined || valor === null || valor === "") {
+            return null;
+        }
+    }
+
+    ensure(typeof valor === "string", 400, campo + " inválido");
+
+    const texto = valor.trim();
+
+    ensure(texto.length > 0, 400, campo + " não pode estar vazio");
+    ensure(texto.length <= max, 400, campo + " muito grande");
+
+    return texto;
 }
-export function id(value, field = 'id') {
-  ensure(['number', 'string'].includes(typeof value) && /^[1-9]\d*$/.test(String(value)) && Number.isSafeInteger(Number(value)), 400, `${field} deve ser um inteiro positivo.`);
-  return Number(value);
+
+
+// VERIFICAR ID
+
+export function id(valor, campo = "id") {
+
+    const tipo = typeof valor;
+
+    ensure(
+        tipo === "string" || tipo === "number",
+        400,
+        campo + " inválido"
+    );
+
+    const texto = String(valor);
+
+    ensure(/^[1-9]\d*$/.test(texto), 400, campo + " inválido");
+
+    const numero = Number(texto);
+
+    ensure(Number.isSafeInteger(numero), 400, campo + " inválido");
+
+    return numero;
 }
-export function email(value) {
-  const normalized = text(value, 'E-mail', 150).toLowerCase();
-  ensure(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized), 400, 'E-mail inválido.');
-  return normalized;
+
+
+// VERIFICAR EMAIL
+
+export function email(valor) {
+
+    const resultado = text(valor, "E-mail", 150).toLowerCase();
+
+    ensure(
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(resultado),
+        400,
+        "E-mail inválido"
+    );
+
+    return resultado;
 }
-export function password(value) {
-  ensure(typeof value === 'string' && value.length >= 8 && value.length <= 128, 400, 'A senha deve ter entre 8 e 128 caracteres.');
-  return value;
+
+
+// VERIFICAR SENHA
+
+export function password(valor) {
+
+    ensure(typeof valor === "string", 400, "Senha inválida");
+    ensure(valor.length >= 8, 400, "A senha precisa ter 8 caracteres");
+    ensure(valor.length <= 128, 400, "Senha muito grande");
+
+    return valor;
 }
-export function type(value) {
-  if (value === 'pessoal') return 'pessoa';
-  if (value === 'empresarial') return 'empresa';
-  ensure(['pessoa', 'empresa'].includes(value), 400, 'Tipo de conta deve ser pessoa ou empresa.');
-  return value;
+
+
+// VERIFICAR TIPO DE CONTA
+
+export function type(valor) {
+
+    if (valor === "pessoa" || valor === "pessoal") {
+        return "pessoa";
+    }
+
+    if (valor === "empresa" || valor === "empresarial") {
+        return "empresa";
+    }
+
+    ensure(false, 400, "Tipo de conta inválido");
 }
-export function document(value, kind, required = false) {
-  if (!required && (value === undefined || value === null || value === '')) return null;
-  ensure(typeof value === 'string', 400, `${kind} inválido.`);
-  const digits = value.replace(/[.\-/\s]/g, '');
-  const length = kind === 'CPF' ? 11 : 14;
-  ensure(new RegExp(`^\\d{${length}}$`).test(digits) && !/^(\d)\1+$/.test(digits), 400, `${kind} inválido.`);
-  const check = (base, weights) => {
-    const sum = [...base].reduce((total, digit, i) => total + Number(digit) * weights[i], 0);
-    const rest = sum % 11;
-    return rest < 2 ? 0 : 11 - rest;
-  };
-  const first = kind === 'CPF' ? [10,9,8,7,6,5,4,3,2] : [5,4,3,2,9,8,7,6,5,4,3,2];
-  const second = kind === 'CPF' ? [11,10,9,8,7,6,5,4,3,2] : [6,5,4,3,2,9,8,7,6,5,4,3,2];
-  ensure(check(digits.slice(0, -2), first) === Number(digits.at(-2)) && check(digits.slice(0, -1), second) === Number(digits.at(-1)), 400, `${kind} inválido.`);
-  return digits;
+
+
+// CALCULAR DIGITO DO CPF OU CNPJ
+
+function calcularDigito(numeros, pesos) {
+
+    let soma = 0;
+
+    for (let i = 0; i < pesos.length; i++) {
+        soma = soma + Number(numeros[i]) * pesos[i];
+    }
+
+    const resto = soma % 11;
+
+    if (resto < 2) {
+        return 0;
+    }
+
+    return 11 - resto;
 }
+
+
+// VERIFICAR CPF OU CNPJ
+
+export function document(valor, tipo, obrigatorio = false) {
+
+    if (obrigatorio === false) {
+        if (valor === undefined || valor === null || valor === "") {
+            return null;
+        }
+    }
+
+    ensure(typeof valor === "string", 400, tipo + " inválido");
+
+    const numeros = valor.replace(/[.\-/\s]/g, "");
+
+    let tamanho = 11;
+    let peso1 = [10,9,8,7,6,5,4,3,2];
+    let peso2 = [11,10,9,8,7,6,5,4,3,2];
+
+    if (tipo === "CNPJ") {
+        tamanho = 14;
+        peso1 = [5,4,3,2,9,8,7,6,5,4,3,2];
+        peso2 = [6,5,4,3,2,9,8,7,6,5,4,3,2];
+    }
+
+    ensure(numeros.length === tamanho, 400, tipo + " inválido");
+    ensure(/^\d+$/.test(numeros), 400, tipo + " inválido");
+
+    // Não aceita todos os dígitos iguais
+    let iguais = true;
+
+    for (let i = 1; i < numeros.length; i++) {
+        if (numeros[i] !== numeros[0]) {
+            iguais = false;
+        }
+    }
+
+    ensure(iguais === false, 400, tipo + " inválido");
+
+    const primeiro = calcularDigito(numeros, peso1);
+    const segundo = calcularDigito(numeros, peso2);
+
+    ensure(
+        primeiro === Number(numeros[numeros.length - 2]),
+        400,
+        tipo + " inválido"
+    );
+
+    ensure(
+        segundo === Number(numeros[numeros.length - 1]),
+        400,
+        tipo + " inválido"
+    );
+
+    return numeros;
+}
+
+
+// PEGAR DATA ATUAL
+
 export function today() {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+
+    const data = new Date();
+
+    return new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Sao_Paulo",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit"
+    }).format(data);
 }
-export function date(value) {
-  ensure(typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value), 400, 'Validade deve estar no formato AAAA-MM-DD.');
-  const parsed = new Date(`${value}T00:00:00Z`);
-  ensure(!Number.isNaN(parsed.valueOf()) && parsed.toISOString().slice(0, 10) === value, 400, 'Data de validade inválida.');
-  ensure(value >= today(), 400, 'Não é possível publicar um alimento vencido.');
-  return value;
+
+
+// VERIFICAR VALIDADE DO ALIMENTO
+
+export function date(valor) {
+
+    ensure(typeof valor === "string", 400, "Data inválida");
+
+    ensure(
+        /^\d{4}-\d{2}-\d{2}$/.test(valor),
+        400,
+        "Use o formato AAAA-MM-DD"
+    );
+
+    const data = new Date(valor + "T00:00:00Z");
+
+    ensure(
+        Number.isNaN(data.getTime()) === false,
+        400,
+        "Data inválida"
+    );
+
+    ensure(
+        data.toISOString().slice(0, 10) === valor,
+        400,
+        "Data inválida"
+    );
+
+    ensure(valor >= today(), 400, "O alimento está vencido");
+
+    return valor;
 }
+
+
+// VERIFICAR ALIMENTO
+
 export function food(input, previous = {}) {
-  body(input);
-  const value = { ...previous, ...input };
-  let quantity = value.quantidade;
-  let unit = value.unidade;
-  if (typeof quantity === 'string') {
-    const match = quantity.trim().match(/^(\d+(?:[.,]\d{1,3})?)\s*([\p{L}\s]+)?$/u);
-    ensure(match, 400, 'Quantidade inválida. Exemplo: 5 kg.');
-    quantity = Number(match[1].replace(',', '.'));
-    if (match[2]) unit = match[2].trim();
-  }
-  ensure(typeof quantity === 'number' && Number.isFinite(quantity) && quantity > 0 && quantity <= 999999 && Math.abs(quantity * 1000 - Math.round(quantity * 1000)) < 1e-7, 400, 'Quantidade deve ser positiva, até 999999 e com no máximo 3 casas decimais.');
-  return {
-    nome: text(value.nome, 'Nome', 110),
-    tipo: text(input.categoria ?? input.tipo ?? previous.tipo, 'Categoria', 100),
-    data_vencimento: date(input.validade ?? input.data_vencimento ?? previous.data_vencimento),
-    quantidade: quantity, unidade: text(unit || 'unidades', 'Unidade', 30),
-  };
+
+    body(input);
+
+    let nome = previous.nome;
+    let categoria = previous.tipo;
+    let validade = previous.data_vencimento;
+    let quantidade = previous.quantidade;
+    let unidade = previous.unidade;
+
+    if (input.nome !== undefined) {
+        nome = input.nome;
+    }
+
+    if (input.tipo !== undefined && input.tipo !== null) {
+        categoria = input.tipo;
+    }
+
+    if (input.categoria !== undefined && input.categoria !== null) {
+        categoria = input.categoria;
+    }
+
+    if (input.data_vencimento !== undefined && input.data_vencimento !== null) {
+        validade = input.data_vencimento;
+    }
+
+    if (input.validade !== undefined && input.validade !== null) {
+        validade = input.validade;
+    }
+
+    if (input.quantidade !== undefined) {
+        quantidade = input.quantidade;
+    }
+
+    if (input.unidade !== undefined) {
+        unidade = input.unidade;
+    }
+
+    // Permitir quantidade como "5 kg" ou "2,5 kg"
+    if (typeof quantidade === "string") {
+
+        const resultado = quantidade.trim().match(
+            /^(\d+(?:[.,]\d{1,3})?)\s*([\p{L}\s]+)?$/u
+        );
+
+        ensure(resultado, 400, "Quantidade inválida");
+
+        quantidade = Number(resultado[1].replace(",", "."));
+
+        if (resultado[2]) {
+            unidade = resultado[2].trim();
+        }
+    }
+
+    ensure(typeof quantidade === "number", 400, "Quantidade inválida");
+    ensure(Number.isFinite(quantidade), 400, "Quantidade inválida");
+    ensure(quantidade > 0, 400, "Quantidade deve ser positiva");
+    ensure(quantidade <= 999999, 400, "Quantidade muito grande");
+
+    const casas = quantidade * 1000;
+
+    ensure(
+        Math.abs(casas - Math.round(casas)) < 0.0000001,
+        400,
+        "Use no máximo 3 casas decimais"
+    );
+
+    return {
+        nome: text(nome, "Nome", 110),
+        tipo: text(categoria, "Categoria", 100),
+        data_vencimento: date(validade),
+        quantidade: quantidade,
+        unidade: text(unidade || "unidades", "Unidade", 30)
+    };
 }
+
+
+// ORGANIZAR PAGINAS DAS LISTAS
+
 export function page(query) {
-  const pagina = query.pagina === undefined ? 1 : id(query.pagina, 'pagina');
-  const limite = query.limite === undefined ? 20 : id(query.limite, 'limite');
-  ensure(limite <= 100 && pagina <= 1000000, 400, 'Limite máximo: 100; página máxima: 1000000.');
-  return { pagina, limite, offset: (pagina - 1) * limite };
+
+    let pagina = 1;
+    let limite = 20;
+
+    if (query.pagina !== undefined) {
+        pagina = id(query.pagina, "pagina");
+    }
+
+    if (query.limite !== undefined) {
+        limite = id(query.limite, "limite");
+    }
+
+    ensure(pagina <= 1000000, 400, "Página inválida");
+    ensure(limite <= 100, 400, "O limite máximo é 100");
+
+    const offset = (pagina - 1) * limite;
+
+    return {
+        pagina: pagina,
+        limite: limite,
+        offset: offset
+    };
 }

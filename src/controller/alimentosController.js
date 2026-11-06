@@ -1,35 +1,108 @@
-import { Router } from 'express';
-import { authenticate } from '../middleware/auth.js';
-import { transaction } from '../repository/connection.js';
-import * as repository from '../repository/alimentosRepository.js';
-import { isOwner } from '../repository/contasRepository.js';
-import { ensure } from '../utils/errors.js';
-import * as v from '../utils/validation.js';
-const endpoints = Router();
-endpoints.get('/alimentos', authenticate, async (req, res) => res.json(await repository.listAlimentos(req.user, v.page(req.query))));
-endpoints.get('/alimentos/:id', authenticate, async (req, res) => {
-  const food = await repository.getAlimentos(v.id(req.params.id));
-  ensure(food, 404, 'Alimento não encontrado.');
-  ensure(isOwner(food, req.user), 403, 'Você só pode consultar seus alimentos.');
-  res.json(food);
+
+import { Router } from "express";
+import { authenticate } from "../middleware/auth.js";
+import { transaction } from "../repository/connection.js";
+import * as alimentos from "../repository/alimentosRepository.js";
+import { isOwner } from "../repository/contasRepository.js";
+import { ensure } from "../utils/errors.js";
+import * as v from "../utils/validation.js";
+
+const router = Router();
+
+
+// LISTAR ALIMENTOS
+
+router.get("/alimentos", authenticate, async (req, res) => {
+    const pagina = v.page(req.query);
+
+    const lista = await alimentos.listAlimentos(req.user, pagina);
+
+    res.json(lista);
 });
-endpoints.post('/alimentos', authenticate, async (req, res) => {
-  const id = await repository.saveAlimento(v.food(req.body), req.user);
-  res.status(201).json({ id, id_alimento: id });
+
+
+// BUSCAR ALIMENTO PELO ID
+
+router.get("/alimentos/:id", authenticate, async (req, res) => {
+    const codigo = v.id(req.params.id);
+
+    const alimento = await alimentos.getAlimentos(codigo);
+
+    ensure(alimento, 404, "Alimento não encontrado");
+    ensure(isOwner(alimento, req.user), 403, "Esse alimento não é seu");
+
+    res.json(alimento);
 });
-async function change(req, remove) {
-  const id = v.id(req.params.id);
-  return transaction(async db => {
-    const food = await repository.getAlimentos(id, db, true);
-    ensure(food, 404, 'Alimento não encontrado.');
-    ensure(isOwner(food, req.user), 403, 'Você só pode alterar seus alimentos.');
-    const [links] = await db.execute('SELECT id_doacao FROM doacoes WHERE id_alimento = ?', [id]);
-    ensure(!links.length, 409, 'Alimento vinculado a uma doação. Use a rota /doacoes.');
-    if (remove) { await db.execute('DELETE FROM alimentos WHERE id_alimento = ?', [id]); return; }
-    await repository.updateAlimento(id, v.food(req.body, food), db);
-    return repository.getAlimentos(id, db);
-  });
-}
-endpoints.put('/alimentos/:id', authenticate, async (req, res) => res.json(await change(req, false)));
-endpoints.delete('/alimentos/:id', authenticate, async (req, res) => { await change(req, true); res.sendStatus(204); });
-export default endpoints;
+
+
+// CADASTRAR ALIMENTO
+
+router.post("/alimentos", authenticate, async (req, res) => {
+    const dados = v.food(req.body);
+
+    const codigo = await alimentos.saveAlimento(dados, req.user);
+
+    res.status(201).json({
+        id: codigo,
+        id_alimento: codigo
+    });
+});
+
+
+// EDITAR ALIMENTO
+
+router.put("/alimentos/:id", authenticate, async (req, res) => {
+    const codigo = v.id(req.params.id);
+
+    const resultado = await transaction(async (db) => {
+        const alimento = await alimentos.getAlimentos(codigo, db, true);
+
+        ensure(alimento, 404, "Alimento não encontrado");
+        ensure(isOwner(alimento, req.user), 403, "Esse alimento não é seu");
+
+        const [doacoes] = await db.execute(
+            "SELECT id_doacao FROM doacoes WHERE id_alimento = ?",
+            [codigo]
+        );
+
+        ensure(doacoes.length === 0, 409, "Alimento já vinculado a uma doação");
+
+        const dados = v.food(req.body, alimento);
+
+        await alimentos.updateAlimento(codigo, dados, db);
+
+        return alimentos.getAlimentos(codigo, db);
+    });
+
+    res.json(resultado);
+});
+
+
+// EXCLUIR ALIMENTO
+
+router.delete("/alimentos/:id", authenticate, async (req, res) => {
+    const codigo = v.id(req.params.id);
+
+    await transaction(async (db) => {
+        const alimento = await alimentos.getAlimentos(codigo, db, true);
+
+        ensure(alimento, 404, "Alimento não encontrado");
+        ensure(isOwner(alimento, req.user), 403, "Esse alimento não é seu");
+
+        const [doacoes] = await db.execute(
+            "SELECT id_doacao FROM doacoes WHERE id_alimento = ?",
+            [codigo]
+        );
+
+        ensure(doacoes.length === 0, 409, "Alimento já vinculado a uma doação");
+
+        await db.execute(
+            "DELETE FROM alimentos WHERE id_alimento = ?",
+            [codigo]
+        );
+    });
+
+    res.sendStatus(204);
+});
+
+export default router;

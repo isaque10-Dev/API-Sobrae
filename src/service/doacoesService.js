@@ -6,7 +6,8 @@ import * as v from '../utils/validation.js';
 import { ensure } from '../utils/errors.js';
 
 
-export async function createDonation(user, input) {
+
+export async function createDonation(user, input, imagem = null) {
     v.body(input);
 
     let local = input.retirada;
@@ -19,10 +20,12 @@ export async function createDonation(user, input) {
     const descricao = v.text(input.descricao, "Descrição", 1000, false);
 
     return transaction(async (db) => {
+
         let idAlimento;
 
         if (input.id_alimento !== undefined) {
-            idAlimento = v.id(input.id_alimento);
+
+            idAlimento = v.id(input.id_alimento, "id_alimento");
 
             const alimento = await foods.getAlimentos(idAlimento, db, true);
 
@@ -31,29 +34,36 @@ export async function createDonation(user, input) {
 
             v.food(alimento);
 
-            const [existente] = await db.execute(
+            const [existentes] = await db.execute(
                 "SELECT id_doacao FROM doacoes WHERE id_alimento = ?",
                 [idAlimento]
             );
 
-            ensure(existente.length === 0, 409, "Alimento já publicado");
+            ensure(
+                existentes.length === 0,
+                409,
+                "Este alimento já possui uma doação"
+            );
 
         } else {
+
             const alimento = v.food(input);
+
             idAlimento = await foods.saveAlimento(alimento, user, db);
         }
 
         const sql = `
             INSERT INTO doacoes
-            (id_alimento, ${user.column}, local_retirada, descricao)
-            VALUES (?, ?, ?, ?)
+            (id_alimento, ${user.column}, local_retirada, descricao, imagem)
+            VALUES (?, ?, ?, ?, ?)
         `;
 
         const [resultado] = await db.execute(sql, [
             idAlimento,
             user.id,
             retirada,
-            descricao
+            descricao,
+            imagem
         ]);
 
         await notify(db, user, "Sua doação foi publicada.");
@@ -61,6 +71,7 @@ export async function createDonation(user, input) {
         return getDonation(resultado.insertId, db);
     });
 }
+
 
 
 export async function updateDonation(user, id, input) {
@@ -224,6 +235,8 @@ export async function listRequests(user, query) {
 
     return resultado;
 }
+
+
 
 export async function changeRequest(user, id, input) {
     v.body(input);

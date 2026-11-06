@@ -5,6 +5,10 @@ import { getDonation, listDonations } from "../repository/doacoesRepository.js";
 import * as doacoes from "../service/doacoesService.js";
 import { id, today } from "../utils/validation.js";
 import { ensure } from "../utils/errors.js";
+import { upload } from "../middleware/upload.js";
+import { unlink } from "node:fs/promises";
+
+
 
 const router = Router();
 
@@ -29,12 +33,34 @@ router.get("/doacoes/:id", async (req, res) => {
     res.json(doacao);
 });
 
-router.post("/doacoes", authenticate, async (req, res) => {
-    const dados = req.body;
-    const resultado = await doacoes.createDonation(req.user, dados);
 
-    res.status(201).json(resultado);
+router.post("/doacoes", authenticate, upload.single("imagem"), async (req, res) => {
+
+    let imagem = null;
+
+    if (req.file) {
+        imagem = "/uploads/" + req.file.filename;
+    }
+
+    try {
+        const resultado = await doacoes.createDonation(
+            req.user,
+            req.body,
+            imagem
+        );
+
+        res.status(201).json(resultado);
+
+    } catch (erro) {
+
+        if (req.file) {
+            await unlink(req.file.path);
+        }
+
+        throw erro;
+    }
 });
+
 
 router.put("/doacoes/:id", authenticate, async (req, res) => {
     const codigo = id(req.params.id);

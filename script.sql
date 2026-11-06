@@ -2,6 +2,54 @@
 CREATE DATABASE IF NOT EXISTS TCC;
 USE TCC;
 
+SHOW TABLES;
+select id_pessoal,nome,email,senha from  conta_pessoal;
+
+SET SQL_SAFE_UPDATES = 1;
+-- IDENTIFICAR OS USUARIOS DE TESTE
+
+SET @usuario1 = (
+    SELECT id_pessoal
+    FROM conta_pessoal
+    WHERE email = 'teste@example.com'
+);
+
+START TRANSACTION;
+
+-- APAGAR AS SOLICITACOES
+DELETE FROM solicitacoes
+WHERE id_pessoal IN (@usuario1)
+OR id_doacao IN (
+    SELECT id_doacao
+    FROM doacoes
+    WHERE id_pessoal IN (@usuario1, @usuario2,@usuario3)
+);
+
+-- APAGAR AS NOTIFICACOES
+DELETE FROM notificacoes
+WHERE id_pessoal IN (@usuario1);
+
+-- APAGAR AS SESSOES DE LOGIN
+DELETE FROM sessoes
+WHERE id_pessoal IN (@usuario1);
+
+-- APAGAR AS DOACOES
+DELETE 
+FROM doacoes
+WHERE id_pessoal IN (@usuario1);
+
+-- APAGAR OS ALIMENTOS
+
+DELETE FROM alimentos
+WHERE id_pessoal IN (@usuario1);
+
+-- APAGAR AS CONTAS
+DELETE FROM conta_pessoal
+WHERE id_pessoal IN (@usuario1);
+
+COMMIT;
+
+
 
 CREATE TABLE IF NOT EXISTS conta_pessoal (
     id_pessoal INT AUTO_INCREMENT PRIMARY KEY,
@@ -45,11 +93,13 @@ CREATE TABLE IF NOT EXISTS alimentos (
 );
 
 
+
 CREATE TABLE IF NOT EXISTS doacoes (
     id_doacao INT AUTO_INCREMENT PRIMARY KEY,
     id_alimento INT,
     id_pessoal INT,
     id_empresa INT,
+    imagem VARCHAR(255),
     data_doacao DATETIME DEFAULT CURRENT_TIMESTAMP,
     status VARCHAR(50) DEFAULT 'disponivel',
     local_retirada VARCHAR(255),
@@ -75,7 +125,6 @@ CREATE TABLE IF NOT EXISTS solicitacoes (
 );
 
 
-
 CREATE TABLE IF NOT EXISTS sessoes (
     token_hash CHAR(64) PRIMARY KEY,
     id_pessoal INT,
@@ -85,7 +134,6 @@ CREATE TABLE IF NOT EXISTS sessoes (
     FOREIGN KEY (id_pessoal) REFERENCES conta_pessoal(id_pessoal),
     FOREIGN KEY (id_empresa) REFERENCES conta_empresarial(id_empresa)
 );
-
 
 CREATE TABLE IF NOT EXISTS notificacoes (
     id_notificacao INT AUTO_INCREMENT PRIMARY KEY,

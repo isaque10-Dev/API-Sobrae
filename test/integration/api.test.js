@@ -89,6 +89,38 @@ test('API com MySQL real: cadastro, permissões, doações e reservas concorrent
     config.adminContas = [];
   });
 
+  await t.test('eventos solidários pertencem ao autor e só administradores podem analisar', async () => {
+    const proposta = {
+      tipoOrganizador: 'instituicao', nomeOrganizacao: 'ONG de teste',
+      nomeResponsavel: 'Pessoa de teste', email: pessoa.email, telefone: pessoa.num_telefone,
+      nomeEvento: 'Mutirão de teste', proposta: 'Distribuição organizada para a comunidade.',
+      alimentos: 'Cestas básicas e frutas.', publicoEstimado: 120,
+      endereco: 'Rua de teste, 100', cidade: 'São Paulo', estado: 'SP',
+      data: '2099-12-31', horario: '09:30',
+    };
+    await request('/eventos-solidarios', { method: 'POST', body: proposta, status: 401 });
+    await request('/eventos-solidarios', { method: 'POST', token: recipient.token, body: { ...proposta, data: '2020-01-01' }, status: 400 });
+    const criada = await request('/eventos-solidarios', { method: 'POST', token: recipient.token, body: proposta, status: 201 });
+    await request('/eventos-solidarios', { method: 'POST', token: donor.token, body: { ...proposta, tipoOrganizador: 'empresa', nomeOrganizacao: 'Empresa de teste', email: empresa.email }, status: 201 });
+    const minhas = await request('/eventos-solidarios/minhas', { token: recipient.token });
+    assert.equal(minhas.length, 1);
+    assert.equal(minhas[0].id_proposta_evento, criada.id_proposta_evento);
+    assert.equal(minhas[0].status, 'pendente');
+    await request(`/eventos-solidarios/${criada.id_proposta_evento}`, { token: donor.token, status: 404 });
+    await request('/admin/eventos-solidarios', { token: recipient.token, status: 403 });
+    config.adminContas = [`pessoa:${other.usuario.id}`];
+    const todas = await request('/admin/eventos-solidarios', { token: other.token });
+    assert.equal(todas.length, 2);
+    assert.equal(todas.find(item => item.id_proposta_evento === criada.id_proposta_evento).autor, pessoa.nome);
+    await request(`/admin/eventos-solidarios/${criada.id_proposta_evento}/status`, { method: 'PATCH', token: other.token, body: { status: 'pendente' }, status: 400 });
+    await request(`/admin/eventos-solidarios/${criada.id_proposta_evento}/status`, { method: 'PATCH', token: other.token, body: { status: 'aprovada', justificativa: 'Evento alinhado com a proposta.' } });
+    await request(`/admin/eventos-solidarios/${criada.id_proposta_evento}/status`, { method: 'PATCH', token: other.token, body: { status: 'recusada' }, status: 409 });
+    const atualizada = (await request('/eventos-solidarios/minhas', { token: recipient.token }))[0];
+    assert.equal(atualizada.status, 'aprovada');
+    assert.equal(atualizada.justificativa, 'Evento alinhado com a proposta.');
+    config.adminContas = [];
+  });
+
   await t.test('valida dados, JSON, IDs e publicação atômica', async () => {
     await request('/doacoes', { method: 'POST', body: food, status: 401 });
     await request('/doacoes', { method: 'POST', body: { ...food, quantidade: -1 }, token: donor.token, status: 400 });
@@ -226,6 +258,8 @@ test('API com MySQL real: cadastro, permissões, doações e reservas concorrent
       assert.equal(foods[0].id_pessoal, null);
       const [accounts] = await db.query('SELECT * FROM conta_pessoal');
       assert.equal(await verifyPassword('1234', accounts[0].senha), true);
+       const [eventTables] = await db.query("SHOW TABLES LIKE 'propostas_eventos'");
+       assert.equal(eventTables.length, 1);
     } finally { await db.end(); }
   });
 });

@@ -4,6 +4,7 @@ import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { config } from "../src/config.js";
 import { hashPassword } from "../src/utils/security.js";
+import { migrateEventosSolidarios } from "./migrations/001-eventos-solidarios.js";
 
 export async function setupDatabase(settings = config.db) {
 
@@ -116,6 +117,8 @@ export async function setupDatabase(settings = config.db) {
                 "ALTER TABLE alimentos MODIFY quantidade DECIMAL(12,3)"
             );
         }
+
+        await migrateEventosSolidarios(db);
 
 
         // PROTEGER SENHAS ANTIGAS

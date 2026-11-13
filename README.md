@@ -19,7 +19,8 @@ Requisitos: Node.js 22 ou superior e MySQL 8.0.16 ou superior.
 
 `db:setup` cria o banco se necessário e atualiza a estrutura antiga sem excluir
 tabelas ou registros. Pode ser repetido. Acrescenta proprietários aos alimentos,
-local de retirada, descrição, sessões e notificações; permite quantidades decimais.
+local de retirada, descrição, sessões, notificações e propostas de eventos solidários;
+permite quantidades decimais.
 Senhas antigas em texto são convertidas para hash, mantendo a senha utilizada no login.
 Faça backup do banco antes de migrar dados importantes; alterações de estrutura MySQL
 não são revertidas por transação. Alimentos antigos sem dono permanecem sem dono:
@@ -96,10 +97,35 @@ Listagens retornam arrays; `pagina` começa em 1 e `limite` vai de 1 a 100 (padr
 | GET | `/notificacoes` | Avisos da própria conta |
 | PATCH | `/notificacoes/:id/lida` | Marca um aviso próprio como lido |
 | DELETE | `/notificacoes` | Limpa os avisos da própria conta |
+| POST | `/eventos-solidarios` | Envia uma proposta de evento solidário |
+| GET | `/eventos-solidarios/minhas` | Lista as próprias propostas e seus status |
+| GET | `/eventos-solidarios/:id` | Consulta uma proposta própria |
 
 Atualização do perfil: troca de e-mail exige `senha_atual`. Não é possível mudar
 o tipo de uma conta existente. Preferências: `usar_localizacao` booleano e
 `distancia_km` com 5, 10 ou 20.
+
+## Eventos solidários e administração
+
+`npm run db:setup` executa a migração incremental
+`scripts/migrations/001-eventos-solidarios.js`. Ela cria somente a tabela
+`propostas_eventos` quando ela ainda não existe, portanto pode ser executada mais
+de uma vez sem apagar propostas nem dados das tabelas antigas. `script.sql` não é
+alterado por essa atualização.
+
+Para liberar o painel administrativo, configure uma conta real no `.env.local`:
+
+```env
+ADMIN_CONTAS=pessoa:1
+```
+
+O formato é `pessoa:ID` ou `empresa:ID`; a verificação ocorre na API, não no
+navegador. Somente essa conta pode usar as rotas abaixo:
+
+| Método | Rota | Função |
+| --- | --- | --- |
+| GET | `/admin/eventos-solidarios` | Lista todas as propostas, com dados para análise |
+| PATCH | `/admin/eventos-solidarios/:id/status` | Aprova ou recusa com `{ "status": "aprovada"|"recusada", "justificativa": "opcional" }` |
 
 ## Publicação e reserva
 

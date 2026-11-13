@@ -1,6 +1,7 @@
 
 import { con } from "./connection.js";
 import { ensure } from "../utils/errors.js";
+import { isAdmin } from "../utils/admin.js";
 
 
 // IDENTIFICAR O TIPO DE CONTA
@@ -63,6 +64,7 @@ export function publicAccount(tipo, conta) {
         email: conta.email,
         num_telefone: conta.num_telefone,
         ativo: Boolean(conta.ativo),
+        administrador: isAdmin(tipo, conta[cfg.id]),
         usar_localizacao: Boolean(conta.usar_localizacao),
         distancia_km: conta.distancia_km
     };

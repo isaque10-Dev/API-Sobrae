@@ -41,7 +41,7 @@ test('API com MySQL real: cadastro, permissões, doações e reservas concorrent
     assert.equal(response.status, status, `${method} ${path}: ${JSON.stringify(value)}`);
     return value;
   }
-  const pessoa = { tipo: 'pessoa', nome: 'Pessoa de teste', email: 'pessoa@example.test', senha: 'Teste123!' };
+  const pessoa = { tipo: 'pessoa', nome: 'Pessoa de teste', email: 'pessoa@example.test', senha: 'Teste123!', num_telefone: '11999990000' };
   const empresa = { tipo: 'empresa', nome_empresa: 'Empresa de teste', cnpj_empresa: '11.222.333/0001-81', email: 'empresa@example.test', senha: 'Teste123!' };
   let donor, recipient, other, donation, firstRequest, secondRequest;
   const food = { nome: 'Arroz', categoria: 'Outro', quantidade: '2,5 kg', validade: '2099-12-31', retirada: 'Portaria do local de teste' };
@@ -60,6 +60,33 @@ test('API com MySQL real: cadastro, permissões, doações e reservas concorrent
     await request('/perfil', { status: 401 });
     assert.equal((await request('/perfil', { token: recipient.token })).email, pessoa.email);
     await request(`/contapessoal/${other.usuario.id}`, { token: recipient.token, status: 403 });
+  });
+
+  await t.test('admin exige sessão e ID autorizado, sem confiar no e-mail ou no cliente', async () => {
+    config.adminEmails = [pessoa.email];
+    config.adminContas = [];
+    await request('/admin/contas', { status: 401 });
+    await request('/admin/contas', { token: recipient.token, status: 403 });
+    await request('/admin/doacoes', { token: recipient.token, status: 403 });
+    await request('/admin/resumo', { token: recipient.token, status: 403 });
+    assert.equal((await request('/auth/me', { token: recipient.token })).administrador, false);
+    config.adminContas = [`pessoa:${other.usuario.id}`];
+    assert.equal((await request('/auth/me', { token: other.token })).administrador, true);
+    const contas = await request('/admin/contas', { token: other.token });
+    assert.equal(contas.length, 3);
+    assert.equal(contas.find(conta => conta.email === pessoa.email).num_telefone, pessoa.num_telefone);
+    assert.equal(contas.find(conta => conta.tipo === 'empresa').documento, '11222333000181');
+    for (const conta of contas) {
+      assert.deepEqual(Object.keys(conta).sort(), ['id', 'tipo', 'nome', 'email', 'ativo', 'documento', 'num_telefone', 'usar_localizacao', 'distancia_km', 'administrador'].sort());
+    }
+    await request(`/admin/contas/pessoa/${other.usuario.id}/status`, { method: 'PATCH', token: other.token, body: { ativo: false }, status: 409 });
+    await request(`/admin/contas/pessoa/${recipient.usuario.id}/status`, { method: 'PATCH', token: recipient.token, body: { ativo: false }, status: 403 });
+    await request('/perfil', { method: 'PATCH', token: recipient.token, body: { nome: 'Pessoa de teste', administrador: true } });
+    assert.equal((await request('/auth/me', { token: recipient.token })).administrador, false);
+    await request(`/admin/contas/pessoa/${recipient.usuario.id}/status`, { method: 'PATCH', token: other.token, body: { ativo: false } });
+    await request('/auth/me', { token: recipient.token, status: 401 });
+    await request(`/admin/contas/pessoa/${recipient.usuario.id}/status`, { method: 'PATCH', token: other.token, body: { ativo: true } });
+    config.adminContas = [];
   });
 
   await t.test('valida dados, JSON, IDs e publicação atômica', async () => {
@@ -151,6 +178,19 @@ test('API com MySQL real: cadastro, permissões, doações e reservas concorrent
     await request(`/notificacoes/${notifications[0].id_notificacao}/lida`, { method: 'PATCH', token: donor.token, status: 204 });
     await request('/notificacoes', { method: 'DELETE', token: donor.token, status: 204 });
     assert.equal((await request('/notificacoes', { token: donor.token })).length, 0);
+  });
+
+  await t.test('resumo administrativo considera vencimento e todo o histórico', async () => {
+    config.adminContas = [`pessoa:${other.usuario.id}`];
+    const resumo = await request('/admin/resumo', { token: other.token });
+    assert.equal(Number(resumo.situacoes.find(item => item.situacao === 'expirado').total), 1);
+    assert.equal(Number(resumo.situacoes.find(item => item.situacao === 'concluido').total), 1);
+    assert.equal(Number(resumo.situacoes.find(item => item.situacao === 'cancelado').total), 1);
+    const lista = await request('/admin/doacoes', { token: other.token });
+    assert.equal(lista.filter(item => item.situacao === 'expirado').length, 1);
+    const [[contagem]] = await con.query('SELECT COUNT(*) AS total FROM doacoes');
+    assert.equal(resumo.situacoes.reduce((soma, item) => soma + Number(item.total), 0), contagem.total);
+    config.adminContas = [];
   });
 
   await t.test('preferências, senha e logout revogam sessões', async () => {

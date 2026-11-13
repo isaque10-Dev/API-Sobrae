@@ -8,6 +8,7 @@ import doacoes from "./controller/doacoesController.js";
 import auth from "./controller/authController.js";
 import solicitacoes from "./controller/solicitacoesController.js";
 import atividades from "./controller/atividadesController.js";
+import admin from "./controller/adminController.js";
 
 export function addRoutes(api) {
 
@@ -28,5 +29,6 @@ export function addRoutes(api) {
     api.use(solicitacoes);
 
     api.use(atividades);
+    api.use(admin);
 
 }

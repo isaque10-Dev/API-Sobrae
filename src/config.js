@@ -8,6 +8,8 @@ export const config = {
   host: process.env.HOST || '127.0.0.1',
   origins: (process.env.CORS_ORIGIN || 'http://localhost:3000,http://127.0.0.1:3000').split(',').map(v => v.trim()),
   sessionHours: 24,
+  adminEmails: (process.env.ADMIN_EMAILS || '').split(',').map(v => v.trim().toLowerCase()).filter(Boolean),
+  adminContas: (process.env.ADMIN_CONTAS || '').split(',').map(v => v.trim()).filter(Boolean),
   db: {
     host: process.env.DB_HOST || 'localhost',
     port: Number(process.env.DB_PORT || 3306),

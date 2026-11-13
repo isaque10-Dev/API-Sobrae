@@ -1,55 +1,13 @@
 
-CREATE DATABASE IF NOT EXISTS TCC;
+-- SOBRAÊ: estrutura completa, incluindo Eventos Solidários.
+-- MySQL 8.0.16 ou superior. Execute este arquivo no MySQL Workbench.
+-- Não inclui dados de usuários, senhas de conexão ou contas de teste.
+-- Pode ser repetido: tabelas existentes e seus registros são preservados.
+-- Para bancos legados com colunas faltantes, use npm run db:setup na API.
+-- Este arquivo cria tabelas ausentes, mas não modifica tabelas já existentes.
+
+CREATE DATABASE IF NOT EXISTS TCC CHARACTER SET utf8mb4;
 USE TCC;
-
-SHOW TABLES;
-select id_pessoal,nome,email,senha from  conta_pessoal;
-
-SET SQL_SAFE_UPDATES = 1;
--- IDENTIFICAR OS USUARIOS DE TESTE
-
-SET @usuario1 = (
-    SELECT id_pessoal
-    FROM conta_pessoal
-    WHERE email = 'teste@example.com'
-);
-
-START TRANSACTION;
-
--- APAGAR AS SOLICITACOES
-DELETE FROM solicitacoes
-WHERE id_pessoal IN (@usuario1)
-OR id_doacao IN (
-    SELECT id_doacao
-    FROM doacoes
-    WHERE id_pessoal IN (@usuario1, @usuario2,@usuario3)
-);
-
--- APAGAR AS NOTIFICACOES
-DELETE FROM notificacoes
-WHERE id_pessoal IN (@usuario1);
-
--- APAGAR AS SESSOES DE LOGIN
-DELETE FROM sessoes
-WHERE id_pessoal IN (@usuario1);
-
--- APAGAR AS DOACOES
-DELETE 
-FROM doacoes
-WHERE id_pessoal IN (@usuario1);
-
--- APAGAR OS ALIMENTOS
-
-DELETE FROM alimentos
-WHERE id_pessoal IN (@usuario1);
-
--- APAGAR AS CONTAS
-DELETE FROM conta_pessoal
-WHERE id_pessoal IN (@usuario1);
-
-COMMIT;
-
-
 
 CREATE TABLE IF NOT EXISTS conta_pessoal (
     id_pessoal INT AUTO_INCREMENT PRIMARY KEY,
@@ -146,3 +104,40 @@ CREATE TABLE IF NOT EXISTS notificacoes (
     FOREIGN KEY (id_pessoal) REFERENCES conta_pessoal(id_pessoal),
     FOREIGN KEY (id_empresa) REFERENCES conta_empresarial(id_empresa)
 );
+
+-- Propostas enviadas pelos usuários e decisões dos administradores.
+CREATE TABLE IF NOT EXISTS propostas_eventos (
+  id_proposta_evento INT AUTO_INCREMENT PRIMARY KEY,
+  id_pessoal INT NULL,
+  id_empresa INT NULL,
+  tipo_organizador VARCHAR(20) NOT NULL,
+  nome_organizacao VARCHAR(150) NULL,
+  nome_responsavel VARCHAR(100) NOT NULL,
+  email VARCHAR(150) NOT NULL,
+  telefone VARCHAR(30) NOT NULL,
+  nome_evento VARCHAR(150) NOT NULL,
+  proposta TEXT NOT NULL,
+  alimentos TEXT NOT NULL,
+  publico_estimado INT NOT NULL,
+  endereco VARCHAR(255) NOT NULL,
+  cidade VARCHAR(100) NOT NULL,
+  estado CHAR(2) NOT NULL,
+  data_evento DATE NOT NULL,
+  horario_evento TIME NOT NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'pendente',
+  justificativa VARCHAR(1000) NULL,
+  id_analista_pessoal INT NULL,
+  id_analista_empresa INT NULL,
+  criada_em DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  analisada_em DATETIME NULL,
+  FOREIGN KEY (id_pessoal) REFERENCES conta_pessoal(id_pessoal),
+  FOREIGN KEY (id_empresa) REFERENCES conta_empresarial(id_empresa),
+  FOREIGN KEY (id_analista_pessoal) REFERENCES conta_pessoal(id_pessoal),
+  FOREIGN KEY (id_analista_empresa) REFERENCES conta_empresarial(id_empresa),
+  INDEX idx_propostas_eventos_autor_pessoal (id_pessoal),
+  INDEX idx_propostas_eventos_autor_empresa (id_empresa),
+  INDEX idx_propostas_eventos_status (status)
+);
+
+-- Conferência da estrutura (não exibe dados pessoais).
+SHOW TABLES;
